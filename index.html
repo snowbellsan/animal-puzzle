@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>おちものぱずる</title>
+    <style>
+        /* 全体のリセットとレイアウト設定 */
+        html, body {
+            width: 100%; height: 100%; margin: 0; padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Arial', sans-serif;
+            user-select: none; -webkit-user-select: none; 
+            display: block;
+        }
+        
+        /* スクロール対策として、コンテンツを中央に配置するラッパーを追加 */
+        #app-outer-wrapper {
+            display: flex; 
+            flex-direction: column; 
+            align-items: center;
+            width: 100%; 
+            min-height: 100vh; /* 画面の高さ分確保 */
+        }
+        
+        @keyframes scorePopup {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3); color: #ffeb3b; }
+            100% { transform: scale(1); }
+        }
+        
+        .score-animate {
+            animation: scorePopup 0.3s ease;
+        }
+
+        /* アプリコンテナ */
+        #app-container {
+            display: flex; flex-direction: column;
+            width: 100%; 
+            max-width: 500px;
+            box-sizing: border-box;
+            padding: 10px 0;
+        }
+        
+        /* ヘッダーは固定の高さ */
+        #ui-header {
+            flex: 0 0 70px;
+            display: flex; justify-content: center; align-items: center;
+            gap: 10px; width: 95%; margin: 0 auto 5px auto;
+        }
+
+        #score-box {
+            background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+            border: 3px solid #ffb74d; border-radius: 15px;
+            flex: 1; height: 60px;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        #score-label { font-size: 11px; color: #666; font-weight: bold; letter-spacing: 1px; }
+        #score { font-size: 28px; font-weight: bold; color: #ff6f00; line-height: 1; text-shadow: 2px 2px 4px rgba(0,0,0,0.2); }
+
+        #next-box {
+            background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(240,240,240,0.9) 100%);
+            border: 3px solid #ffb74d; border-radius: 15px;
+            width: 180px; height: 60px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        #next-row-canvas { width: 100%; height: 100%; }
+
+        /* ゲームキャンバスのラッパー */
+        #canvas-wrapper {
+            flex: 1 1 auto;
+            position: relative; width: 100%;
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden;
+            min-height: 300px;
+        }
+        canvas#world {
+            max-width: 96%; 
+            max-height: 100%;
+            width: auto; 
+            height: auto;
+            aspect-ratio: 2 / 3;
+            border: 5px solid #ff9800; border-radius: 20px;
+            background: #ffe0b2; 
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.5);
+            touch-action: none; 
+        }
+
+        /* 成長ライン（フッター） */
+        #ui-footer {
+            flex: 0 0 auto;
+            width: 95%; margin: 15px auto 10px auto;
+            background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(240,240,240,0.8) 100%);
+            border: 3px solid #ffb74d; border-radius: 15px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            padding: 5px 0 10px 0;
+        }
+        .footer-label { font-size: 13px; font-weight: bold; color: #ff6f00; margin-top: 2px; letter-spacing: 1px; }
+        #evolution-ring-canvas { margin-bottom: 2px; }
+
+        #game-over-overlay {
+            position: fixed;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, rgba(30,30,30,0.98) 0%, rgba(0,0,0,0.95) 100%);
+            color: white; padding: 40px; border-radius: 25px;
+            text-align: center; display: none; z-index: 100;
+            border: 4px solid #ff5252; width: 80%; max-width: 350px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+</head>
+<body>
+
+<div id="app-outer-wrapper"> <div id="app-container">
+    <div id="ui-header">
+        <div id="score-box">
+            <div id="score-label">SCORE</div>
+            <div id="score">0</div>
+        </div>
+        <div id="next-box">
+            <canvas id="next-row-canvas" width="180" height="60"></canvas>
+        </div>
+    </div>
+
+    <div id="canvas-wrapper">
+        <canvas id="world" width="400" height="600"></canvas>
+    </div>
+
+    <div id="ui-footer">
+        <div class="footer-label">成長ライン</div>
+        <canvas id="evolution-ring-canvas" width="300" height="80"></canvas>
+    </div>
+</div>
+</div> <div id="game-over-overlay">
+    <h1 style="color:#ff5555; margin-top:0;">GAME OVER</h1>
+    <p id="final-score" style="font-size:24px;">Score: 0</p>
+    <button onclick="location.reload()" style="padding:15px 30px; background:#4CAF50; color:white; border:none; border-radius:10px; font-size:18px; cursor:pointer;">RETRY</button>
+</div>
+
+<script>
+    const Engine = Matter.Engine,
+          Render = Matter.Render,
+          Runner = Matter.Runner,
+          Bodies = Matter.Bodies,
+          Composite = Matter.Composite,
+          Events = Matter.Events,
+          World = Matter.World;
+
+    // ゲーム定数
+    const GAME_WIDTH = 400;
+    const GAME_HEIGHT = 600;
+    const GAME_OVER_LINE_Y = 100;
+    const DROP_DELAY = 800;
+    const GAMEOVER_CHECK_TIME = 2000;
+    const WALL_THICKNESS = 60;
+    
+    // 画像の読み込み（01.png～11.png）
+    const ballImages = [];
+    let imagesLoadedCount = 0;
+    const totalImages = 11;
+    let allImagesLoaded = false;
+    
+    for (let i = 1; i <= totalImages; i++) {
+        const img = new Image();
+        img.src = `assets/${String(i).padStart(2, '0')}.png`;
+        img.onload = () => { 
+            imagesLoadedCount++;
+            if (imagesLoadedCount === totalImages) {
+                allImagesLoaded = true;
+                // 画像読み込み完了後にゲーム開始
+                initGame();
+            }
+        };
+        ballImages.push(img);
+    }
+	
+	// 🎵 BGM読み込み＆ループ設定
+    const bgm = new Audio("assets/making_sweets.mp3");
+    bgm.loop = true;
+    bgm.volume = 0.3;
+	
+	// 🎵 合体音
+    const seMerge = new Audio("assets/ぱっ.mp3");
+    seMerge.volume = 0.9;
+
+
+    // 虹色アニメーション用および水面アニメーション用のグローバルタイマー
+    let rainbowTime = 0; 
+    let waterTime = 0;
+
+    // カラフルボール定義（各ボールに画像インデックスを追加）
+    const BALLS = [
+        { label: 'blue', radius: 15, baseColor: '#2196F3', highlight: '#64B5F6', shadow: '#1565C0', score: 10, imageIndex: 0 },
+        { label: 'skyblue', radius: 25, baseColor: '#00BCD4', highlight: '#4DD0E1', shadow: '#0097A7', score: 20, imageIndex: 1 },
+        { label: 'purple', radius: 35, baseColor: '#9c27b0', highlight: '#ce93d8', shadow: '#6a1b9a', score: 30, imageIndex: 2 },
+        { label: 'orange', radius: 45, baseColor: '#ff9800', highlight: '#ffcc80', shadow: '#f57c00', score: 50, imageIndex: 3 },
+        { label: 'orange2', radius: 55, baseColor: '#ff6f00', highlight: '#ffab40', shadow: '#e65100', score: 80, imageIndex: 4 },
+        { label: 'red', radius: 65, baseColor: '#f44336', highlight: '#ef5350', shadow: '#d32f2f', score: 120, imageIndex: 5 },
+        { label: 'yellow', radius: 75, baseColor: '#fdd835', highlight: '#ffee58', shadow: '#f9a825', score: 170, imageIndex: 6 },
+        { label: 'pink', radius: 85, baseColor: '#ffb3d9', highlight: '#ffd4e5', shadow: '#ff80ab', score: 230, imageIndex: 7 },
+        { label: 'yelloworange', radius: 95, baseColor: '#ffc107', highlight: '#ffe082', shadow: '#ffa000', score: 300, imageIndex: 8 },
+        { label: 'lightgreen', radius: 105, baseColor: '#66bb6a', highlight: '#a5d6a7', shadow: '#43a047', score: 380, imageIndex: 9 },
+        // 虹色ボール (アニヒレーション対象)
+        { label: 'rainbow', radius: 120, baseColor: 'rainbow', highlight: 'rainbow', shadow: 'rainbow', score: 1000, imageIndex: 10 }
+    ];
+
+    const engine = Engine.create();
+    const world = engine.world;
+    engine.world.gravity.y = 1.2;
+
+    // キャンバス取得
+    const canvas = document.getElementById('world');
+    const ctx = canvas.getContext('2d');
+    const nextRowCanvas = document.getElementById('next-row-canvas');
+    const nextRowCtx = nextRowCanvas.getContext('2d');
+    const ringCanvas = document.getElementById('evolution-ring-canvas');
+    const ringCtx = ringCanvas.getContext('2d');
+
+    // 壁作成（物理パラメータ改善）
+    const ground = Bodies.rectangle(GAME_WIDTH/2, GAME_HEIGHT + 10, GAME_WIDTH + 20, WALL_THICKNESS, {
+        isStatic: true, friction: 0.8, restitution: 0.1
+    });
+    const leftWall = Bodies.rectangle(-10, GAME_HEIGHT/2, WALL_THICKNESS, GAME_HEIGHT, {
+        isStatic: true, friction: 0.8, restitution: 0.1
+    });
+    const rightWall = Bodies.rectangle(GAME_WIDTH + 10, GAME_HEIGHT/2, WALL_THICKNESS, GAME_HEIGHT, {
+        isStatic: true, friction: 0.8, restitution: 0.1
+    });
+    World.add(world, [ground, leftWall, rightWall]);
+
+    // ゲーム状態
+    let currentFruit = null;
+    let isClickable = true;
+    let isGameOver = false;
+    let score = 0;
+    let nextQueue = [];
+    let particles = [];
+    let bodiesAboveLine = new Map();
+
+    // キュー管理
+    function fillQueue() {
+        while(nextQueue.length < 3) {
+            nextQueue.push(Math.floor(Math.random() * 3));
+        }
+    }
+    fillQueue();
+
+    // --- パーティクルシステム ---
+    class Particle {
+        constructor(x, y, color) {
+            this.x = x;
+            this.y = y;
+            this.vx = (Math.random() - 0.5) * 8;
+            this.vy = (Math.random() - 0.5) * 8 - 2;
+            this.life = 1.0;
+            this.color = color;
+            this.size = Math.random() * 6 + 3;
+        }
+        
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.vy += 0.3;
+            this.life -= 0.02;
+            return this.life > 0;
+        }
+        
+        draw(ctx) {
+            ctx.globalAlpha = this.life;
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
+    }
+
+    function createParticles(x, y, color, count = 15) {
+        for(let i = 0; i < count; i++) {
+            particles.push(new Particle(x, y, color));
+        }
+    }
+
+
+    // --- 描画ヘルパー（画像版・影なし） ---
+    function drawBALLShape(ctx, x, y, radius, def) {
+        ctx.save();
+        
+        // 対応する画像を取得
+        const img = ballImages[def.imageIndex];
+        
+        // 画像を描画（影なし）
+        if (img && img.complete) {
+            ctx.drawImage(
+                img,
+                x - radius,
+                y - radius,
+                radius * 2,
+                radius * 2
+            );
+        } else {
+            // フォールバック: シンプルな円（影なし）
+            const grad = ctx.createRadialGradient(
+                x - radius*0.35, y - radius*0.35, radius*0.1,
+                x, y, radius
+            );
+            grad.addColorStop(0, def.highlight);
+            grad.addColorStop(0.6, def.baseColor);
+            grad.addColorStop(1, def.shadow);
+            
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI*2);
+            ctx.fillStyle = grad;
+            ctx.fill();
+        }
+        
+        ctx.restore();
+    }
+
+    // ヘッダーのNEXT描画（横並び）
+    function drawNextRow() {
+        nextRowCtx.clearRect(0, 0, nextRowCanvas.width, nextRowCanvas.height);
+        
+        const positions = [
+            { x: 35, y: 35, size: 22, label: "NEXT" },
+            { x: 90, y: 35, size: 18, label: "2nd" },
+            { x: 140, y: 35, size: 15, label: "3rd" }
+        ];
+        
+        positions.forEach((pos, i) => {
+            if (i < nextQueue.length) {
+                const f = BALLS[nextQueue[i]];
+                drawBALLShape(nextRowCtx, pos.x, pos.y, pos.size, f);
+                nextRowCtx.fillStyle = "#333";
+                nextRowCtx.font = "bold 10px Arial";
+                nextRowCtx.textAlign = "center";
+                nextRowCtx.fillText(pos.label, pos.x, 10);
+            }
+        });
+    }
+
+    // フッターの成長ライン描画
+    function drawEvolutionRing(highlightIndex = -1) {
+        ringCtx.clearRect(0, 0, ringCanvas.width, ringCanvas.height);
+        
+        const total = BALLS.length;
+        const startX = 25;
+        const endX = ringCanvas.width - 25;
+        const step = (endX - startX) / (total - 1);
+        const yBase = 50;
+
+        // 接続線（グラデーション）
+        const lineGrad = ringCtx.createLinearGradient(startX, 0, endX, 0);
+        lineGrad.addColorStop(0, '#ff9800');
+        lineGrad.addColorStop(0.5, '#ffc107');
+        lineGrad.addColorStop(1, '#ff9800');
+        
+        ringCtx.beginPath();
+        ringCtx.moveTo(startX, yBase);
+        ringCtx.lineTo(endX, yBase);
+        ringCtx.strokeStyle = lineGrad;
+        ringCtx.lineWidth = 5;
+        ringCtx.stroke();
+
+        BALLS.forEach((f, i) => {
+            const x = startX + step * i;
+            const y = yBase;
+
+            // ハイライト（現在の生成物）
+            if (i === highlightIndex) {
+                ringCtx.save();
+                ringCtx.shadowColor = '#ffeb3b';
+                ringCtx.shadowBlur = 20;
+                ringCtx.beginPath();
+                ringCtx.arc(x, y, 18, 0, Math.PI*2);
+                ringCtx.fillStyle = 'rgba(255,235,59,0.6)';
+                ringCtx.fill();
+                ringCtx.restore();
+            }
+            
+            // 次落ちてくるやつ
+            if (nextQueue.length > 0 && i === nextQueue[0]) {
+                ringCtx.beginPath();
+                ringCtx.arc(x, y, 16, 0, Math.PI*2);
+                ringCtx.strokeStyle = '#4caf50';
+                ringCtx.lineWidth = 3;
+                ringCtx.stroke();
+            }
+
+            // カラフルボール本体
+            const size = 8 + i * 1.2;
+            drawBALLShape(ringCtx, x, y, size, f);
+        });
+    }
+
+    // スコア更新（アニメーション付き）
+    function updateScore(points) {
+        score += points;
+        const scoreEl = document.getElementById('score');
+        scoreEl.innerText = score;
+        scoreEl.classList.add('score-animate');
+        setTimeout(() => scoreEl.classList.remove('score-animate'), 300);
+    }
+
+    // --- ゲームロジック ---
+    function createCurrentFruit() {
+        if (isGameOver) return;
+        const index = nextQueue.shift();
+        fillQueue();
+        
+        drawNextRow();
+        drawEvolutionRing();
+
+        const f = BALLS[index];
+        currentFruit = Bodies.circle(GAME_WIDTH/2, 40, f.radius, {
+            label: index.toString(),
+            isStatic: true,
+            restitution: 0.3,
+            friction: 0.5,
+            density: 0.001,
+            frictionAir: 0.01
+        });
+        World.add(world, currentFruit);
+        isClickable = true;
+    }
+
+    function dropCurrentFruit() {
+        if (!currentFruit || !isClickable || isGameOver) return;
+        isClickable = false;
+        Matter.Body.setStatic(currentFruit, false);
+        
+        const f = BALLS[parseInt(currentFruit.label)];
+        createParticles(currentFruit.position.x, currentFruit.position.y, f.baseColor, 5);
+        
+        setTimeout(createCurrentFruit, DROP_DELAY);
+    }
+
+    // ゲームオーバー判定
+    function checkGameOver() {
+        if (isGameOver) return;
+        
+        const bodies = Composite.allBodies(world);
+        const now = Date.now();
+        
+        for (let body of bodies) {
+            if (body.isStatic || body === currentFruit) continue;
+            
+            if (body.position.y - body.circleRadius < GAME_OVER_LINE_Y) { 
+                if (!bodiesAboveLine.has(body.id)) {
+                    bodiesAboveLine.set(body.id, now);
+                }
+                else if (now - bodiesAboveLine.get(body.id) > GAMEOVER_CHECK_TIME) {
+                    if (body.speed < 0.5) {
+                        triggerGameOver();
+                        return;
+                    }
+                }
+            } else {
+                bodiesAboveLine.delete(body.id);
+            }
+        }
+    }
+
+    function triggerGameOver() {
+        isGameOver = true;
+        document.getElementById('final-score').innerText = "Score: " + score;
+        document.getElementById('game-over-overlay').style.display = "block";
+    }
+
+    // 衝突イベント（対消滅ロジックを追加）
+    Events.on(engine, 'collisionStart', (event) => {
+        if (isGameOver) return;
+        
+        event.pairs.forEach(pair => {
+            const { bodyA, bodyB } = pair;
+            
+            if (bodyA.label && bodyB.label && bodyA.label === bodyB.label) {
+                if (bodyA.isSensor || bodyB.isSensor) return;
+                if (!Composite.get(world, bodyA.id, 'body') || !Composite.get(world, bodyB.id, 'body')) return;
+                
+                const index = parseInt(bodyA.label);
+                const rainbowIndex = BALLS.length - 1;
+
+                bodyA.isSensor = true;
+                bodyB.isSensor = true;
+                
+                World.remove(world, [bodyA, bodyB]);
+                
+                const mx = (bodyA.position.x + bodyB.position.x) / 2;
+                const my = (bodyA.position.y + bodyB.position.y) / 2;
+
+                if (index < rainbowIndex) {
+                    const newIndex = index + 1;
+                    const f = BALLS[newIndex];
+                    
+                    let sx = mx;
+                    const minX = f.radius + 15;
+                    const maxX = GAME_WIDTH - f.radius - 15;
+                    sx = Math.max(minX, Math.min(maxX, sx));
+
+                    const newBody = Bodies.circle(sx, my, f.radius, {
+                        label: newIndex.toString(),
+                        restitution: 0.3,
+                        friction: 0.5,
+                        density: 0.001,
+                        frictionAir: 0.01
+                    });
+                    World.add(world, newBody);
+                    
+                    createParticles(mx, my, f.baseColor, 20);
+                    updateScore(f.score);
+                    drawEvolutionRing(newIndex);
+					
+                    seMerge.currentTime = 0;
+                    seMerge.play();
+                } else {
+                    const annihilationScore = BALLS[index].score * 5;
+                    
+                    createParticles(mx, my, '#ffffff', 80);
+                    createParticles(mx, my, '#ff0000', 40);
+                    createParticles(mx, my, '#0000ff', 40);
+                    
+                    updateScore(annihilationScore);
+                }
+            }
+        });
+    });
+
+    Events.on(engine, 'afterUpdate', checkGameOver);
+
+    // --- 入力処理 ---
+    let scaleFactor = 1;
+    function calculateScaleFactor() {
+        const rect = canvas.getBoundingClientRect();
+        const wrapper = document.getElementById('canvas-wrapper');
+        const wrapperRect = wrapper.getBoundingClientRect();
+
+        const ratio = GAME_WIDTH / GAME_HEIGHT;
+        let effectiveWidth = wrapperRect.height * ratio;
+        let effectiveHeight = wrapperRect.height;
+
+        if (effectiveWidth > wrapperRect.width) {
+            effectiveWidth = wrapperRect.width;
+            effectiveHeight = effectiveWidth / ratio;
+        }
+        
+        const currentDisplayWidth = rect.width;
+        scaleFactor = GAME_WIDTH / currentDisplayWidth;
+    }
+    
+    window.addEventListener('resize', calculateScaleFactor);
+
+    function getInternalX(clientX) {
+        const rect = canvas.getBoundingClientRect();
+        let x = (clientX - rect.left) * scaleFactor; 
+        
+        if (currentFruit) {
+            const r = currentFruit.circleRadius;
+            const minX = r + 10;
+            const maxX = GAME_WIDTH - r - 10;
+            x = Math.max(minX, Math.min(maxX, x));
+        }
+        return x;
+    }
+
+    function handleInputMove(clientX) {
+        if (!currentFruit || !isClickable || isGameOver) return;
+        const x = getInternalX(clientX);
+        Matter.Body.setPosition(currentFruit, { x: x, y: 40 });
+    }
+
+    window.addEventListener('load', calculateScaleFactor); 
+    
+    window.addEventListener('mousemove', (e) => handleInputMove(e.clientX));
+    
+    canvas.addEventListener('click', () => dropCurrentFruit());
+
+    canvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length > 0) {
+            e.preventDefault(); 
+            handleInputMove(e.touches[0].clientX);
+        }
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+        if (e.touches.length > 0) {
+            e.preventDefault(); 
+            handleInputMove(e.touches[0].clientX);
+        }
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', (e) => {
+        dropCurrentFruit();
+    }, { passive: false });
+
+
+    // --- メインループ ---
+    let lastTime = Date.now();
+    
+    (function renderLoop() {
+        const now = Date.now();
+        const delta = now - lastTime;
+        lastTime = now;
+        
+        waterTime += 0.05;
+        
+        const bodies = Composite.allBodies(world);
+        ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        
+        // --- 水の描画 ---
+        const WATER_LEVEL = GAME_OVER_LINE_Y;
+        const WAVE_AMPLITUDE = 5;
+        const WAVE_FREQUENCY = 0.05;
+        const SEGMENTS = 20; 
+
+        ctx.save();
+        
+        const waterGrad = ctx.createLinearGradient(0, WATER_LEVEL, 0, GAME_HEIGHT);
+        waterGrad.addColorStop(0, 'rgba(100, 150, 255, 0.5)'); 
+        waterGrad.addColorStop(1, 'rgba(0, 50, 150, 0.8)');   
+        
+        ctx.beginPath();
+        ctx.moveTo(0, WATER_LEVEL);
+
+        for (let i = 0; i <= SEGMENTS; i++) {
+            const x = GAME_WIDTH / SEGMENTS * i;
+            const y = WATER_LEVEL + Math.sin(x * WAVE_FREQUENCY + waterTime) * WAVE_AMPLITUDE;
+            ctx.lineTo(x, y);
+        }
+
+        ctx.lineTo(GAME_WIDTH, GAME_HEIGHT);
+        ctx.lineTo(0, GAME_HEIGHT);
+        ctx.closePath();
+        ctx.fillStyle = waterGrad;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(0, WATER_LEVEL);
+        for (let i = 0; i <= SEGMENTS; i++) {
+            const x = GAME_WIDTH / SEGMENTS * i;
+            const y = WATER_LEVEL + Math.sin(x * WAVE_FREQUENCY + waterTime) * WAVE_AMPLITUDE;
+            ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.restore();
+
+        // ドロップガイド
+        if (!isGameOver) {
+            if (currentFruit && isClickable) {
+                const x = currentFruit.position.x;
+                
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(x, GAME_OVER_LINE_Y); 
+                ctx.lineTo(x, GAME_HEIGHT);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.restore();
+            }
+        }
+
+        // カラフルボール描画
+        bodies.forEach(body => {
+            if (body.render.visible === false) return;
+            if (body.circleRadius) {
+                const index = parseInt(body.label);
+                const f = BALLS[index];
+                if (f) {
+                    drawBALLShape(ctx, body.position.x, body.position.y, body.circleRadius, f);
+                }
+            }
+        });
+        
+        // パーティクル更新と描画
+        particles = particles.filter(p => {
+            const alive = p.update();
+            if (alive) p.draw(ctx);
+            return alive;
+        });
+
+        Engine.update(engine, Math.min(delta, 16.67));
+        requestAnimationFrame(renderLoop);
+    })();
+	
+    // 🔊 初回タップでBGM開始
+    window.addEventListener("pointerdown", () => {
+        bgm.play().catch(() => {});
+    }, { once: true });
+
+
+    // 初期実行（画像読み込み完了後に実行される）
+    function initGame() {
+        fillQueue();
+        drawNextRow();
+        drawEvolutionRing();
+        createCurrentFruit();
+    }
+</script>
+</body>
+</html>
