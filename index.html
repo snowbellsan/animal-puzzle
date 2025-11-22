@@ -167,16 +167,33 @@
     for (let i = 1; i <= totalImages; i++) {
         const img = new Image();
         img.src = `assets/${String(i).padStart(2, '0')}.png`;
-        img.onload = () => { 
+        img.onerror = () => {
+            console.error(`Failed to load image: ${img.src}`);
             imagesLoadedCount++;
             if (imagesLoadedCount === totalImages) {
                 allImagesLoaded = true;
-                // 画像読み込み完了後にゲーム開始
+                initGame();
+            }
+        };
+        img.onload = () => { 
+            console.log(`Loaded image: ${img.src}`);
+            imagesLoadedCount++;
+            if (imagesLoadedCount === totalImages) {
+                allImagesLoaded = true;
                 initGame();
             }
         };
         ballImages.push(img);
     }
+    
+    // 5秒経っても画像が読み込まれなければ強制的にゲーム開始
+    setTimeout(() => {
+        if (!allImagesLoaded) {
+            console.warn('Images took too long to load, starting game anyway');
+            allImagesLoaded = true;
+            initGame();
+        }
+    }, 5000);
 	
 	// 🎵 BGM読み込み＆ループ設定
     const bgm = new Audio("assets/making_sweets.mp3");
@@ -294,7 +311,7 @@
         const img = ballImages[def.imageIndex];
         
         // 画像を描画（影なし）
-        if (img && img.complete) {
+        if (img && img.complete && img.naturalWidth > 0) {
             ctx.drawImage(
                 img,
                 x - radius,
@@ -303,7 +320,7 @@
                 radius * 2
             );
         } else {
-            // フォールバック: シンプルな円（影なし）
+            // フォールバック: カラフルな円
             const grad = ctx.createRadialGradient(
                 x - radius*0.35, y - radius*0.35, radius*0.1,
                 x, y, radius
@@ -316,6 +333,12 @@
             ctx.arc(x, y, radius, 0, Math.PI*2);
             ctx.fillStyle = grad;
             ctx.fill();
+            
+            // デバッグ用：画像が読み込まれていないことを示す
+            ctx.fillStyle = 'white';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(def.imageIndex + 1, x, y);
         }
         
         ctx.restore();
