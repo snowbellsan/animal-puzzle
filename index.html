@@ -166,7 +166,7 @@
     
     for (let i = 1; i <= totalImages; i++) {
         const img = new Image();
-        img.src = `assets/${String(i).padStart(2, '0')}.PNG`;
+        img.src = `assets/${String(i).padStart(2, '0')}.png`;
         img.onerror = () => {
             console.error(`Failed to load image: ${img.src}`);
             imagesLoadedCount++;
@@ -221,8 +221,8 @@
         { label: 'pink', radius: 85, baseColor: '#ffb3d9', highlight: '#ffd4e5', shadow: '#ff80ab', score: 230, imageIndex: 7 },
         { label: 'yelloworange', radius: 95, baseColor: '#ffc107', highlight: '#ffe082', shadow: '#ffa000', score: 300, imageIndex: 8 },
         { label: 'lightgreen', radius: 105, baseColor: '#66bb6a', highlight: '#a5d6a7', shadow: '#43a047', score: 380, imageIndex: 9 },
-        // 虹色ボール (アニヒレーション対象)
-        { label: 'rainbow', radius: 120, baseColor: 'rainbow', highlight: 'rainbow', shadow: 'rainbow', score: 1000, imageIndex: 10 }
+        // 虹色ボール (アニヒレーション対象) - フォールバック用に通常の色を設定
+        { label: 'rainbow', radius: 120, baseColor: '#ff69b4', highlight: '#ff99cc', shadow: '#ff1493', score: 1000, imageIndex: 10 }
     ];
 
     const engine = Engine.create();
