@@ -153,7 +153,8 @@
     // ゲーム定数
     const GAME_WIDTH = 400;
     const GAME_HEIGHT = 600;
-    const GAME_OVER_LINE_Y = 100;
+    // 変更点1: ゲームオーバーラインを引き上げ
+    const GAME_OVER_LINE_Y = 60;
     const DROP_DELAY = 800;
     const GAMEOVER_CHECK_TIME = 2000;
     const WALL_THICKNESS = 60;
@@ -304,9 +305,17 @@
 
 
     // --- 描画ヘルパー（画像版・影なし） ---
-    function drawBALLShape(ctx, x, y, radius, def) {
+    // 変更点2: body（物体）を引数に追加し、その角度を利用して回転
+    function drawBALLShape(ctx, x, y, radius, def, body = null) {
         ctx.save();
         
+        // 画像回転の処理
+        if (body) {
+            ctx.translate(x, y);
+            ctx.rotate(body.angle);
+            ctx.translate(-x, -y);
+        }
+
         // 対応する画像を取得
         const img = ballImages[def.imageIndex];
         
@@ -357,6 +366,7 @@
         positions.forEach((pos, i) => {
             if (i < nextQueue.length) {
                 const f = BALLS[nextQueue[i]];
+                // nextRowCanvasでは回転は不要なのでbodyは渡さない
                 drawBALLShape(nextRowCtx, pos.x, pos.y, pos.size, f);
                 nextRowCtx.fillStyle = "#333";
                 nextRowCtx.font = "bold 10px Arial";
@@ -416,6 +426,7 @@
 
             // カラフルボール本体
             const size = 8 + i * 1.2;
+            // evolution-ring-canvasでは回転は不要
             drawBALLShape(ringCtx, x, y, size, f);
         });
     }
@@ -445,7 +456,8 @@
             restitution: 0.3,
             friction: 0.5,
             density: 0.001,
-            frictionAir: 0.01
+            frictionAir: 0.01,
+            angle: Math.random() * Math.PI * 2 // 初期回転を追加
         });
         World.add(world, currentFruit);
         isClickable = true;
@@ -530,7 +542,8 @@
                         restitution: 0.3,
                         friction: 0.5,
                         density: 0.001,
-                        frictionAir: 0.01
+                        frictionAir: 0.01,
+                        angle: bodyA.angle // 合体後の初期回転を保持
                     });
                     World.add(world, newBody);
                     
@@ -699,7 +712,8 @@
                 const index = parseInt(body.label);
                 const f = BALLS[index];
                 if (f) {
-                    drawBALLShape(ctx, body.position.x, body.position.y, body.circleRadius, f);
+                    // 変更点3: bodyを引数に渡し、回転を有効化
+                    drawBALLShape(ctx, body.position.x, body.position.y, body.circleRadius, f, body);
                 }
             }
         });
