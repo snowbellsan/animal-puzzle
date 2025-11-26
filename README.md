@@ -4,3 +4,5 @@
 
 BGMと効果音はこちらのDOVA-SYNDROMEから使用させていただいております。
 https://dova-s.jp/
+
+少しだけ難易度を下げました
